@@ -131,8 +131,9 @@ GameObject:
   - component: {fileID: 401921899}
   - component: {fileID: 401921898}
   - component: {fileID: 401921897}
-  - component: {fileID: 401921901}
   - component: {fileID: 401921902}
+  - component: {fileID: 401921901}
+  - component: {fileID: 401921903}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -298,6 +299,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   walkSpeed: 5
   jumpForce: 45
+  jumpBufferFrames: 8
+  coyoteTime: 0.1
+  maxAirJumps: 1
+  dashEffect: {fileID: 3541333969942703131, guid: c6f09b76908d7489cab9b421606534e6, type: 3}
+  dashSpeed: 25
+  dashTime: 0.2
+  dashCooldown: 0.35
   groundCheck: {fileID: 441761021}
   groundCheckX: 0.5
   groundCheckY: 0.2
@@ -326,6 +334,20 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &401921903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 401921896}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9c63a249b87e54a42b009b82c6807008, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  isJumping: 0
+  isDashing: 0
 --- !u!1 &441761020
 GameObject:
   m_ObjectHideFlags: 0
