@@ -7,6 +7,13 @@ public class PlayerController : MonoBehaviour
 {
     public static PlayerController Instance { get; private set; }
 
+    [Header("Health Settings")]
+    [SerializeField] private int health;
+    [SerializeField] private int maxHealth;
+    [Space(5f)]
+
+    // ========================================================== //
+
     [Header("Player Movement Settings")]
     [SerializeField] private float walkSpeed = 5f;
     [Space(5f)]
@@ -54,7 +61,8 @@ public class PlayerController : MonoBehaviour
 
     [Header("Attack Settings")]
     [SerializeField] private float attackDamage = 10f; // Damage dealt by attacks
-    private float timeSinceAttack, timeBetweenAttacks;
+    [SerializeField] private float timeBetweenAttacks; // Cooldown between attacks
+    private float timeSinceAttack;
     private bool isAttacking = false; // Whether attack input was pressed this frame
     [SerializeField] Transform sideAttackPoint, upAttackPoint, downAttackPoint; // Attack points for different attack directions
     [SerializeField] Vector2 sideAttackArea, upAttackArea, downAttackArea; // Area of effect for each attack direction
@@ -79,7 +87,7 @@ public class PlayerController : MonoBehaviour
 
     private Animator animator;
 
-    private PlayerStateList playerStateList;
+    [HideInInspector] public PlayerStateList playerStateList;
 
     void Awake()
     {
@@ -91,6 +99,8 @@ public class PlayerController : MonoBehaviour
         {
             Instance = this;
         }
+
+        playerStateList = GetComponent<PlayerStateList>();
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -98,8 +108,8 @@ public class PlayerController : MonoBehaviour
     {
         rigidbody2D = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
-        playerStateList = GetComponent<PlayerStateList>();
         gravity = rigidbody2D.gravityScale;
+        health = maxHealth;
     }
 
     // Update is called once per frame
@@ -116,6 +126,7 @@ public class PlayerController : MonoBehaviour
         Jump();
         StartDash();
         Attack();
+        Recoil();
     }
 
     private void GetInputs()
@@ -173,12 +184,12 @@ public class PlayerController : MonoBehaviour
         if (xAxisInput < 0)
         {
             transform.localScale = new Vector2(-Mathf.Abs(transform.localScale.x), transform.localScale.y);
-            playerStateList.lookingRight = false;
+            playerStateList.isLookingRight = false;
         }
         else if (xAxisInput > 0)
         {
             transform.localScale = new Vector2(Mathf.Abs(transform.localScale.x), transform.localScale.y);
-            playerStateList.lookingRight = true;
+            playerStateList.isLookingRight = true;
         }
     }
 
@@ -249,17 +260,17 @@ public class PlayerController : MonoBehaviour
 
             if (yAxisInput == 0 || yAxisInput < 0 && IsGrounded())
             {
-                Hit(sideAttackPoint, sideAttackArea, ref playerStateList.recoilingX, recoilXSpeed);
+                Hit(sideAttackPoint, sideAttackArea, ref playerStateList.isRecoilingX, recoilXSpeed);
                 Instantiate(slashEffect, sideAttackPoint);
             }
             else if (yAxisInput > 0)
             {
-                Hit(upAttackPoint, upAttackArea, ref playerStateList.recoilingY, recoilYSpeed);
+                Hit(upAttackPoint, upAttackArea, ref playerStateList.isRecoilingY, recoilYSpeed);
                 SlashEffectAngle(slashEffect, 80, upAttackPoint);
             }
             else if (yAxisInput < 0 && !IsGrounded())
             {
-                Hit(downAttackPoint, downAttackArea, ref playerStateList.recoilingY, recoilYSpeed);
+                Hit(downAttackPoint, downAttackArea, ref playerStateList.isRecoilingY, recoilYSpeed);
                 SlashEffectAngle(slashEffect, -90, downAttackPoint);
             }
         }
@@ -303,9 +314,9 @@ public class PlayerController : MonoBehaviour
 
     private void Recoil()
     {
-        if (playerStateList.recoilingX)
+        if (playerStateList.isRecoilingX)
         {
-            if (playerStateList.lookingRight)
+            if (playerStateList.isLookingRight)
             {
                 rigidbody2D.linearVelocity = new Vector2(-recoilXSpeed, 0);
             }
@@ -315,7 +326,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (playerStateList.recoilingY)
+        if (playerStateList.isRecoilingY)
         {
             if (yAxisInput < 0)
             {
@@ -335,11 +346,11 @@ public class PlayerController : MonoBehaviour
         }
 
         // Stop recoil effects
-        if (playerStateList.recoilingX && stepsXRecoiled < recoilXSteps)
+        if (playerStateList.isRecoilingX && stepsXRecoiled < recoilXSteps)
         {
             stepsXRecoiled++;
         }
-        else if (playerStateList.recoilingY && stepsYRecoiled < recoilYSteps)
+        else if (playerStateList.isRecoilingY && stepsYRecoiled < recoilYSteps)
         {
             stepsYRecoiled++;
         }
@@ -358,13 +369,32 @@ public class PlayerController : MonoBehaviour
     private void StopRecoilX()
     {
         stepsXRecoiled = 0;
-        playerStateList.recoilingX = false;
+        playerStateList.isRecoilingX = false;
     }
 
     private void StopRecoilY()
     {
         stepsYRecoiled = 0;
-        playerStateList.recoilingY = false;
+        playerStateList.isRecoilingY = false;
     }
 
+    public void TakeDamage(float _damage)
+    {
+        health -= Mathf.RoundToInt(_damage);
+        StartCoroutine(StopTakingDamage());
+    }
+
+    private void ClampHealth()
+    {
+        health = Mathf.Clamp(health, 0, maxHealth);
+    }
+
+    private IEnumerator StopTakingDamage()
+    {
+        playerStateList.isInvincible = true;
+        animator.SetTrigger("Hurt");
+        ClampHealth();
+        yield return new WaitForSeconds(1f); // Duration of invincibility
+        playerStateList.isInvincible = false;
+    }
 }

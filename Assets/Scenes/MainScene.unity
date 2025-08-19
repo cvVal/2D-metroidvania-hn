@@ -167,7 +167,7 @@ GameObject:
   - component: {fileID: 401921903}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -331,6 +331,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5747f3fdbb8034e12971a7df28cb5b1c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  health: 100
+  maxHealth: 100
   walkSpeed: 5
   jumpForce: 45
   jumpBufferFrames: 1
@@ -347,6 +349,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   attackDamage: 10
+  timeBetweenAttacks: 0.5
   sideAttackPoint: {fileID: 1054015565}
   upAttackPoint: {fileID: 877175728}
   downAttackPoint: {fileID: 322026708}
@@ -360,7 +363,8 @@ MonoBehaviour:
   recoilXSteps: 5
   recoilYSteps: 5
   recoilXSpeed: 100
-  recoilYSpeed: 100
+  recoilYSpeed: 32
+  playerStateList: {fileID: 0}
 --- !u!95 &401921902
 Animator:
   serializedVersion: 7
@@ -397,9 +401,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   isJumping: 0
   isDashing: 0
-  recoilingX: 0
-  recoilingY: 0
-  lookingRight: 0
+  isRecoilingX: 0
+  isRecoilingY: 0
+  isLookingRight: 0
+  isInvincible: 0
 --- !u!1 &441761020
 GameObject:
   m_ObjectHideFlags: 0
@@ -876,6 +881,7 @@ GameObject:
   - component: {fileID: 1627941378}
   - component: {fileID: 1627941377}
   - component: {fileID: 1627941381}
+  - component: {fileID: 1627941382}
   m_Layer: 6
   m_Name: Enemy
   m_TagString: Untagged
@@ -906,9 +912,9 @@ Rigidbody2D:
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_SleepingMode: 1
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
   m_Constraints: 4
 --- !u!61 &1627941378
 BoxCollider2D:
@@ -944,7 +950,7 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
+  m_Offset: {x: 0.0000009536743, y: 0.0054451525}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -954,7 +960,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.6945305, y: 0.72774476}
   m_EdgeRadius: 0
 --- !u!212 &1627941379
 SpriteRenderer:
@@ -1035,13 +1041,61 @@ MonoBehaviour:
   m_GameObject: {fileID: 1627941376}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 217f7735e47ba406380f9b289f734f80, type: 3}
+  m_Script: {fileID: 11500000, guid: d5d34417cbf814a36b87b4b20a6ca50b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  health: 30
+  health: 50
   recoilLength: 0.5
   recoilFactor: 5
   isRecoiling: 0
+  speed: 1
+  damage: 5
+--- !u!61 &1627941382
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627941376}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 1
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_SpriteTilingProperty:
+    border: {x: 0, y: 0, z: 0, w: 0}
+    pivot: {x: 0.5, y: 0.5}
+    oldSize: {x: 1, y: 1}
+    newSize: {x: 1, y: 1}
+    adaptiveTilingThreshold: 0.5
+    drawMode: 0
+    adaptiveTiling: 0
+  m_AutoTiling: 0
+  m_Size: {x: 1, y: 1}
+  m_EdgeRadius: 0
 --- !u!1 &1813015347
 GameObject:
   m_ObjectHideFlags: 0
