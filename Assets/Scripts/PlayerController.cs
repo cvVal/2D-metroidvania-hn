@@ -9,7 +9,24 @@ public class PlayerController : MonoBehaviour
 
     [Header("Health Settings")]
     [SerializeField] private int health;
-    [SerializeField] private int maxHealth;
+    [SerializeField] public int maxHealth;
+    [SerializeField] private float hitFlashSpeed;
+    public delegate void OnHealthChangedDelegate();
+    [HideInInspector] public OnHealthChangedDelegate onHealthChangedCallback;
+
+    private float healTimer;
+    [SerializeField] private float timeToHeal;
+    [SerializeField] private GameObject bloodSpurtPrefab;
+
+    [Space(5f)]
+
+    // ========================================================== //
+
+    [Header("Mana Settings")]
+    [SerializeField] private float mana;
+    [SerializeField] private float manaDrainSpeed;
+    [SerializeField] private float manaGain;
+
     [Space(5f)]
 
     // ========================================================== //
@@ -68,6 +85,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] Vector2 sideAttackArea, upAttackArea, downAttackArea; // Area of effect for each attack direction
     [SerializeField] private LayerMask attackableLayer; // Layer mask for attackable objects
     [SerializeField] private GameObject slashEffect; // Visual effect for attacks
+    private bool restoreTime;
+    private float restoreTimeSpeed;
     [Space(5f)]
 
     // ========================================================== //
@@ -89,6 +108,39 @@ public class PlayerController : MonoBehaviour
 
     [HideInInspector] public PlayerStateList playerStateList;
 
+    private SpriteRenderer spriteRenderer;
+
+    // ========================================================== //
+
+    public int Health
+    {
+        get { return health; }
+        set
+        {
+            if (health != value)
+            {
+                health = Mathf.Clamp(value, 0, maxHealth);
+
+                if (onHealthChangedCallback != null)
+                {
+                    onHealthChangedCallback.Invoke();
+                }
+            }
+        }
+    }
+
+    float Mana
+    {
+        get { return mana; }
+        set
+        {
+            if (mana != value)
+            {
+                mana = Mathf.Clamp(value, 0, 1);
+            }
+        }
+    }
+
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -109,7 +161,9 @@ public class PlayerController : MonoBehaviour
         rigidbody2D = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         gravity = rigidbody2D.gravityScale;
-        health = maxHealth;
+        Health = maxHealth;
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        Mana = mana;
     }
 
     // Update is called once per frame
@@ -126,6 +180,14 @@ public class PlayerController : MonoBehaviour
         Jump();
         StartDash();
         Attack();
+        RestoreTimeScale();
+        FlashWhileInvincible();
+        Heal();
+    }
+
+    void FixedUpdate()
+    {
+        if (playerStateList.isDashing) return; // Skip movement and jumping if dashing
         Recoil();
     }
 
@@ -291,16 +353,22 @@ public class PlayerController : MonoBehaviour
         {
             Debug.Log("Hit!");
             _recoilDir = true;
-
-            foreach (Collider2D enemy in hitEnemies)
+        }
+        foreach (Collider2D enemy in hitEnemies)
+        {
+            if (enemy.GetComponent<EnemyController>() != null)
             {
-                // Apply damage or effects to the enemy
                 enemy.GetComponent<EnemyController>()
-                .EnemyHit(
-                    attackDamage,
-                    (transform.position - enemy.transform.position).normalized,
-                    _recoilForce
-                );
+                    .EnemyHit(
+                        attackDamage,
+                        (transform.position - enemy.transform.position).normalized,
+                        _recoilForce
+                    );
+
+                if (enemy.CompareTag("Enemy"))
+                {
+                    Mana += manaGain;
+                }
             }
         }
     }
@@ -380,21 +448,95 @@ public class PlayerController : MonoBehaviour
 
     public void TakeDamage(float _damage)
     {
-        health -= Mathf.RoundToInt(_damage);
+        Health -= Mathf.RoundToInt(_damage);
         StartCoroutine(StopTakingDamage());
-    }
-
-    private void ClampHealth()
-    {
-        health = Mathf.Clamp(health, 0, maxHealth);
     }
 
     private IEnumerator StopTakingDamage()
     {
         playerStateList.isInvincible = true;
+
+        GameObject bloodSpurt = Instantiate(bloodSpurtPrefab, transform.position, Quaternion.identity);
+        Destroy(bloodSpurt, 1.5f);
+
         animator.SetTrigger("Hurt");
-        ClampHealth();
+
         yield return new WaitForSeconds(1f); // Duration of invincibility
         playerStateList.isInvincible = false;
+    }
+
+    public void HitStopTime(float _newTimeScale, int _restoreSpeed, float _delay)
+    {
+        restoreTimeSpeed = _restoreSpeed;
+        Time.timeScale = _newTimeScale;
+
+        if (_delay > 0)
+        {
+            StopCoroutine(ResetTimeScale(_delay));
+            StartCoroutine(ResetTimeScale(_delay));
+        }
+        else
+        {
+            restoreTime = true;
+        }
+    }
+
+    private IEnumerator ResetTimeScale(float _delay)
+    {
+        restoreTime = true;
+        yield return new WaitForSeconds(_delay);
+    }
+
+    private void RestoreTimeScale()
+    {
+        if (restoreTime)
+        {
+            if (Time.timeScale < 1f)
+            {
+                Time.timeScale += restoreTimeSpeed * Time.deltaTime;
+            }
+            else
+            {
+                Time.timeScale = 1f;
+                restoreTime = false;
+            }
+        }
+    }
+
+    private void FlashWhileInvincible()
+    {
+        spriteRenderer.material.color = playerStateList.isInvincible
+        ? Color.Lerp(Color.white, Color.black, Mathf.PingPong(Time.time * hitFlashSpeed, 1f))
+        : Color.white;
+    }
+
+    private void Heal()
+    {
+        if (Input.GetButton("Healing")
+                && Health < maxHealth
+                && Mana > 0
+                && !playerStateList.isJumping
+                && !playerStateList.isDashing)
+        {
+            playerStateList.isHealing = true;
+            animator.SetBool("isHealing", true);
+
+            healTimer += Time.deltaTime;
+
+            if (healTimer >= timeToHeal)
+            {
+                Health++;
+                healTimer = 0;
+            }
+
+            // Drain mana
+            Mana -= Time.deltaTime * manaDrainSpeed;
+        }
+        else
+        {
+            playerStateList.isHealing = false;
+            animator.SetBool("isHealing", false);
+            healTimer = 0;
+        }
     }
 }

@@ -66,11 +66,12 @@ public class EnemyController : MonoBehaviour
         PlayerController.Instance.TakeDamage(damage);
     }
 
-    protected void OnTriggerEnter2D(Collider2D _other)
+    protected void OnCollisionStay2D(Collision2D _other)
     {
-        if (_other.CompareTag("Player") && !PlayerController.Instance.playerStateList.isInvincible)
+        if (_other.gameObject.CompareTag("Player") && !PlayerController.Instance.playerStateList.isInvincible)
         {
             Attack();
+            PlayerController.Instance.HitStopTime(0, 5, .2f);
         }
     }
 }

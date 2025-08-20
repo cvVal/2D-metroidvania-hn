@@ -7,4 +7,5 @@ public class PlayerStateList : MonoBehaviour
     public bool isRecoilingX = false, isRecoilingY = false;
     public bool isLookingRight = false;
     public bool isInvincible = false;
+    public bool isHealing = false;
 }
