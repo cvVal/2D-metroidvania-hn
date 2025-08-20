@@ -2,20 +2,20 @@ using UnityEngine;
 
 public class EnemyController : MonoBehaviour
 {
-    [SerializeField] protected float health;
-    [SerializeField] protected float recoilLength;
-    [SerializeField] protected float recoilFactor;
-    [SerializeField] protected bool isRecoiling = false;
+    [SerializeField] protected float m_health;
+    [SerializeField] protected float m_recoilLength;
+    [SerializeField] protected float m_recoilFactor;
+    [SerializeField] protected bool m_isRecoiling = false;
 
-    [SerializeField] protected float speed;
-    [SerializeField] protected float damage;
+    [SerializeField] protected float m_speed;
+    [SerializeField] protected float m_damage;
 
-    protected float recoilTimer = 0f;
-    protected new Rigidbody2D rigidbody2D;
+    protected float m_recoilTimer = 0f;
+    protected Rigidbody2D m_rigidbody2D;
 
     protected virtual void Awake()
     {
-        rigidbody2D = GetComponent<Rigidbody2D>();
+        m_rigidbody2D = GetComponent<Rigidbody2D>();
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -27,21 +27,21 @@ public class EnemyController : MonoBehaviour
     // Update is called once per frame
     protected virtual void Update()
     {
-        if (health <= 0)
+        if (m_health <= 0)
         {
             Die();
         }
 
-        if (isRecoiling)
+        if (m_isRecoiling)
         {
-            if (recoilTimer < recoilLength)
+            if (m_recoilTimer < m_recoilLength)
             {
-                recoilTimer += Time.deltaTime;
+                m_recoilTimer += Time.deltaTime;
             }
             else
             {
-                isRecoiling = false;
-                recoilTimer = 0f;
+                m_isRecoiling = false;
+                m_recoilTimer = 0f;
             }
         }
     }
@@ -53,22 +53,22 @@ public class EnemyController : MonoBehaviour
 
     public virtual void EnemyHit(float _damage, Vector2 _hitDirection, float _hitForce)
     {
-        health -= _damage;
-        if (!isRecoiling)
+        m_health -= _damage;
+        if (!m_isRecoiling)
         {
-            rigidbody2D.AddForce(-_hitForce * recoilFactor * _hitDirection);
-            isRecoiling = true;
+            m_rigidbody2D.AddForce(-_hitForce * m_recoilFactor * _hitDirection);
+            m_isRecoiling = true;
         }
     }
 
     protected virtual void Attack()
     {
-        PlayerController.Instance.TakeDamage(damage);
+        PlayerController.Instance.TakeDamage(m_damage);
     }
 
     protected void OnCollisionStay2D(Collision2D _other)
     {
-        if (_other.gameObject.CompareTag("Player") && !PlayerController.Instance.playerStateList.isInvincible)
+        if (_other.gameObject.CompareTag("Player") && !PlayerController.Instance.PlayerStateList.IsInvincible)
         {
             Attack();
             PlayerController.Instance.HitStopTime(0, 5, .2f);

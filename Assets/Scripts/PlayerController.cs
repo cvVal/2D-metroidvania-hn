@@ -8,135 +8,136 @@ public class PlayerController : MonoBehaviour
     public static PlayerController Instance { get; private set; }
 
     [Header("Health Settings")]
-    [SerializeField] private int health;
-    [SerializeField] public int maxHealth;
-    [SerializeField] private float hitFlashSpeed;
+    [SerializeField] private int m_health;
+    [SerializeField] public int MaxHealth;
+    [SerializeField] private float m_hitFlashSpeed;
     public delegate void OnHealthChangedDelegate();
-    [HideInInspector] public OnHealthChangedDelegate onHealthChangedCallback;
+    [HideInInspector] public OnHealthChangedDelegate OnHealthChangedCallback;
 
-    private float healTimer;
-    [SerializeField] private float timeToHeal;
-    [SerializeField] private GameObject bloodSpurtPrefab;
+    private float m_healTimer;
+    [SerializeField] private float m_timeToHeal;
+    [SerializeField] private GameObject m_bloodSpurtPrefab;
 
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Mana Settings")]
-    [SerializeField] private float mana;
-    [SerializeField] private float manaDrainSpeed;
-    [SerializeField] private float manaGain;
+    [SerializeField] private float m_mana;
+    [SerializeField] private float m_manaDrainSpeed;
+    [SerializeField] private float m_manaGain;
 
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Player Movement Settings")]
-    [SerializeField] private float walkSpeed = 5f;
+    [SerializeField] private float m_walkSpeed = 5f;
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Jump Settings")]
-    [SerializeField] private float jumpForce = 45f; // Force applied when jumping (higher = higher jumps)
+    [SerializeField] private float m_jumpForce = 45f; // Force applied when jumping (higher = higher jumps)
 
     // Jump Buffer: Allows player to press jump slightly before landing and still jump
-    private float jumpBufferCounter = 0; // Current buffer timer countdown
-    [SerializeField] private int jumpBufferFrames; // How many frames to remember jump input
+    private float m_jumpBufferCounter = 0; // Current buffer timer countdown
+    [SerializeField] private int m_jumpBufferFrames; // How many frames to remember jump input
 
     // Coyote Time: Allows player to jump for a short time after leaving ground
-    private float coyoteTimeCounter = 0; // Current coyote time remaining
-    [SerializeField] private float coyoteTime; // Duration player can jump after leaving ground
+    private float m_coyoteTimeCounter = 0; // Current coyote time remaining
+    [SerializeField] private float m_coyoteTime; // Duration player can jump after leaving ground
 
     // Air Jumping: Multiple jumps while airborne (double jump, triple jump, etc.)
-    private int airJumpCounter = 0; // Current number of air jumps used
-    [SerializeField] private int maxAirJumps; // Maximum air jumps allowed before landing
+    private int m_airJumpCounter = 0; // Current number of air jumps used
+    [SerializeField] private int m_maxAirJumps; // Maximum air jumps allowed before landing
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Dash Settings")]
-    [SerializeField] private GameObject dashEffect; // Visual effect spawned during dash
-    [SerializeField] private float dashSpeed = 20f; // Speed during dash movement
-    [SerializeField] private float dashTime = 0.2f; // Duration of dash in seconds
-    [SerializeField] private float dashCooldown = 1f; // Cooldown before dash can be used again
-    private bool canDash = true; // Whether dash is available (not on cooldown)
-    private float gravity; // Stores original gravity to restore after dash
-    private bool isDashing = false; // Current dash state flag
+    [SerializeField] private GameObject m_dashEffect; // Visual effect spawned during dash
+    [SerializeField] private float m_dashSpeed = 20f; // Speed during dash movement
+    [SerializeField] private float m_dashTime = 0.2f; // Duration of dash in seconds
+    [SerializeField] private float m_dashCooldown = 1f; // Cooldown before dash can be used again
+    private bool m_canDash = true; // Whether dash is available (not on cooldown)
+    private float m_gravity; // Stores original gravity to restore after dash
+    private bool m_isDashing = false; // Current dash state flag
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Ground Check Settings")]
-    [SerializeField] private Transform groundCheck;
-    [SerializeField] private float groundCheckX = 0.5f;
-    [SerializeField] private float groundCheckY = 0.2f;
-    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private Transform m_groundCheck;
+    [SerializeField] private float m_groundCheckX = 0.5f;
+    [SerializeField] private float m_groundCheckY = 0.2f;
+    [SerializeField] private LayerMask m_groundLayer;
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Attack Settings")]
-    [SerializeField] private float attackDamage = 10f; // Damage dealt by attacks
-    [SerializeField] private float timeBetweenAttacks; // Cooldown between attacks
-    private float timeSinceAttack;
-    private bool isAttacking = false; // Whether attack input was pressed this frame
-    [SerializeField] Transform sideAttackPoint, upAttackPoint, downAttackPoint; // Attack points for different attack directions
-    [SerializeField] Vector2 sideAttackArea, upAttackArea, downAttackArea; // Area of effect for each attack direction
-    [SerializeField] private LayerMask attackableLayer; // Layer mask for attackable objects
-    [SerializeField] private GameObject slashEffect; // Visual effect for attacks
-    private bool restoreTime;
-    private float restoreTimeSpeed;
+    [SerializeField] private float m_attackDamage = 10f; // Damage dealt by attacks
+    [SerializeField] private float m_timeBetweenAttacks; // Cooldown between attacks
+    private float m_timeSinceAttack;
+    private bool m_isAttacking = false; // Whether attack input was pressed this frame
+    [SerializeField] private Transform m_sideAttackPoint;
+    [SerializeField] private Transform m_upAttackPoint;
+    [SerializeField] private Transform m_downAttackPoint;
+    [SerializeField] private Vector2 m_sideAttackArea;
+    [SerializeField] private Vector2 m_upAttackArea;
+    [SerializeField] private Vector2 m_downAttackArea;
+    [SerializeField] private LayerMask m_attackableLayer; // Layer mask for attackable objects
+    [SerializeField] private GameObject m_slashEffect; // Visual effect for attacks
+    private bool m_restoreTime;
+    private float m_restoreTimeSpeed;
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Recoil Settings")]
-    [SerializeField] private int recoilXSteps = 5;
-    [SerializeField] private int recoilYSteps = 5;
-    [SerializeField] private float recoilXSpeed = 100;
-    [SerializeField] private float recoilYSpeed = 100;
-    private int stepsXRecoiled, stepsYRecoiled;
+    [SerializeField] private int m_recoilXSteps = 5;
+    [SerializeField] private int m_recoilYSteps = 5;
+    [SerializeField] private float m_recoilXSpeed = 100;
+    [SerializeField] private float m_recoilYSpeed = 100;
+    private int m_stepsXRecoiled, m_stepsYRecoiled;
     [Space(5f)]
 
     // ========================================================== //
 
-    private new Rigidbody2D rigidbody2D;
-    private float xAxisInput, yAxisInput;
+    private Rigidbody2D m_rigidbody2D;
+    private float m_xAxisInput, m_yAxisInput;
 
-    private Animator animator;
+    private Animator m_animator;
 
-    [HideInInspector] public PlayerStateList playerStateList;
+    [HideInInspector] public PlayerStateList PlayerStateList;
 
-    private SpriteRenderer spriteRenderer;
+    private SpriteRenderer m_spriteRenderer;
 
     // ========================================================== //
 
     public int Health
     {
-        get { return health; }
+        get { return m_health; }
         set
         {
-            if (health != value)
+            if (m_health != value)
             {
-                health = Mathf.Clamp(value, 0, maxHealth);
+                m_health = Mathf.Clamp(value, 0, MaxHealth);
 
-                if (onHealthChangedCallback != null)
-                {
-                    onHealthChangedCallback.Invoke();
-                }
+                OnHealthChangedCallback?.Invoke();
             }
         }
     }
 
     float Mana
     {
-        get { return mana; }
+        get { return m_mana; }
         set
         {
-            if (mana != value)
+            if (m_mana != value)
             {
-                mana = Mathf.Clamp(value, 0, 1);
+                m_mana = Mathf.Clamp(value, 0, 1);
             }
         }
     }
@@ -152,18 +153,18 @@ public class PlayerController : MonoBehaviour
             Instance = this;
         }
 
-        playerStateList = GetComponent<PlayerStateList>();
+        PlayerStateList = GetComponent<PlayerStateList>();
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        rigidbody2D = GetComponent<Rigidbody2D>();
-        animator = GetComponent<Animator>();
-        gravity = rigidbody2D.gravityScale;
-        Health = maxHealth;
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        Mana = mana;
+        m_rigidbody2D = GetComponent<Rigidbody2D>();
+        m_animator = GetComponent<Animator>();
+        m_gravity = m_rigidbody2D.gravityScale;
+        Health = MaxHealth;
+        m_spriteRenderer = GetComponent<SpriteRenderer>();
+        Mana = m_mana;
     }
 
     // Update is called once per frame
@@ -172,7 +173,7 @@ public class PlayerController : MonoBehaviour
         GetInputs();
         UpdateJumpState();
 
-        if (playerStateList.isDashing) return; // Skip movement and jumping if dashing
+        if (PlayerStateList.IsDashing) return; // Skip movement and jumping if dashing
         // if (playerStateList.isAttacking) return; // Skip movement and jumping if attacking
 
         Flip();
@@ -187,54 +188,54 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (playerStateList.isDashing) return; // Skip movement and jumping if dashing
+        if (PlayerStateList.IsDashing) return; // Skip movement and jumping if dashing
         Recoil();
     }
 
     private void GetInputs()
     {
-        xAxisInput = Input.GetAxis("Horizontal");
-        yAxisInput = Input.GetAxis("Vertical");
-        isAttacking = Input.GetButtonDown("Fire1"); // Uses Input Manager settings (left ctrl OR left mouse)
+        m_xAxisInput = Input.GetAxis("Horizontal");
+        m_yAxisInput = Input.GetAxis("Vertical");
+        m_isAttacking = Input.GetButtonDown("Fire1"); // Uses Input Manager settings (left ctrl OR left mouse)
     }
 
     private void Move()
     {
-        rigidbody2D.linearVelocity = new Vector2(xAxisInput * walkSpeed, rigidbody2D.linearVelocity.y);
-        animator.SetBool("isWalking", rigidbody2D.linearVelocity.x != 0 && IsGrounded());
+        m_rigidbody2D.linearVelocity = new Vector2(m_xAxisInput * m_walkSpeed, m_rigidbody2D.linearVelocity.y);
+        m_animator.SetBool("isWalking", m_rigidbody2D.linearVelocity.x != 0 && IsGrounded());
     }
 
     private void Jump()
     {
-        if (Input.GetButtonUp("Jump") && rigidbody2D.linearVelocity.y > 0)
+        if (Input.GetButtonUp("Jump") && m_rigidbody2D.linearVelocity.y > 0)
         {
-            rigidbody2D.linearVelocity = new Vector2(rigidbody2D.linearVelocity.x, 0);
-            playerStateList.isJumping = false;
+            m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, 0);
+            PlayerStateList.IsJumping = false;
         }
 
-        if (!playerStateList.isJumping)
+        if (!PlayerStateList.IsJumping)
         {
-            if (jumpBufferCounter > 0 && coyoteTimeCounter > 0)
+            if (m_jumpBufferCounter > 0 && m_coyoteTimeCounter > 0)
             {
-                rigidbody2D.linearVelocity = new Vector2(rigidbody2D.linearVelocity.x, jumpForce);
-                playerStateList.isJumping = true;
+                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
+                PlayerStateList.IsJumping = true;
             }
-            else if (!IsGrounded() && airJumpCounter < maxAirJumps && Input.GetButtonDown("Jump"))
+            else if (!IsGrounded() && m_airJumpCounter < m_maxAirJumps && Input.GetButtonDown("Jump"))
             {
-                playerStateList.isJumping = true;
-                airJumpCounter++;
-                rigidbody2D.linearVelocity = new Vector2(rigidbody2D.linearVelocity.x, jumpForce);
+                PlayerStateList.IsJumping = true;
+                m_airJumpCounter++;
+                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
             }
         }
 
-        animator.SetBool("isJumping", !IsGrounded());
+        m_animator.SetBool("isJumping", !IsGrounded());
     }
 
     private bool IsGrounded()
     {
-        if (Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckY, groundLayer)
-            || Physics2D.Raycast(groundCheck.position + new Vector3(groundCheckX, 0, 0), Vector2.down, groundCheckY, groundLayer)
-            || Physics2D.Raycast(groundCheck.position + new Vector3(-groundCheckX, 0, 0), Vector2.down, groundCheckY, groundLayer))
+        if (Physics2D.Raycast(m_groundCheck.position, Vector2.down, m_groundCheckY, m_groundLayer)
+            || Physics2D.Raycast(m_groundCheck.position + new Vector3(m_groundCheckX, 0, 0), Vector2.down, m_groundCheckY, m_groundLayer)
+            || Physics2D.Raycast(m_groundCheck.position + new Vector3(-m_groundCheckX, 0, 0), Vector2.down, m_groundCheckY, m_groundLayer))
         {
             return true;
         }
@@ -243,15 +244,15 @@ public class PlayerController : MonoBehaviour
 
     private void Flip()
     {
-        if (xAxisInput < 0)
+        if (m_xAxisInput < 0)
         {
             transform.localScale = new Vector2(-Mathf.Abs(transform.localScale.x), transform.localScale.y);
-            playerStateList.isLookingRight = false;
+            PlayerStateList.IsLookingRight = false;
         }
-        else if (xAxisInput > 0)
+        else if (m_xAxisInput > 0)
         {
             transform.localScale = new Vector2(Mathf.Abs(transform.localScale.x), transform.localScale.y);
-            playerStateList.isLookingRight = true;
+            PlayerStateList.IsLookingRight = true;
         }
     }
 
@@ -259,81 +260,81 @@ public class PlayerController : MonoBehaviour
     {
         if (IsGrounded())
         {
-            playerStateList.isJumping = false;
-            coyoteTimeCounter = coyoteTime;
-            airJumpCounter = 0;
+            PlayerStateList.IsJumping = false;
+            m_coyoteTimeCounter = m_coyoteTime;
+            m_airJumpCounter = 0;
         }
         else
         {
-            coyoteTimeCounter -= Time.deltaTime;
+            m_coyoteTimeCounter -= Time.deltaTime;
         }
 
         if (Input.GetButtonDown("Jump"))
         {
-            jumpBufferCounter = jumpBufferFrames;
+            m_jumpBufferCounter = m_jumpBufferFrames;
         }
         else
         {
-            jumpBufferCounter -= Time.deltaTime * 10;
+            m_jumpBufferCounter -= Time.deltaTime * 10;
         }
     }
 
     private void StartDash()
     {
-        if (Input.GetButtonDown("Dash") && canDash && !isDashing)
+        if (Input.GetButtonDown("Dash") && m_canDash && !m_isDashing)
         {
             StartCoroutine(Dash());
-            isDashing = true;
+            m_isDashing = true;
         }
 
         if (IsGrounded())
         {
-            isDashing = false;
+            m_isDashing = false;
         }
     }
 
     private IEnumerator Dash()
     {
-        canDash = false;
-        playerStateList.isDashing = true;
-        animator.SetTrigger("Dashing");
+        m_canDash = false;
+        PlayerStateList.IsDashing = true;
+        m_animator.SetTrigger("Dashing");
 
-        rigidbody2D.gravityScale = 0;
-        rigidbody2D.linearVelocity = new Vector2(transform.localScale.x * dashSpeed, 0);
+        m_rigidbody2D.gravityScale = 0;
+        m_rigidbody2D.linearVelocity = new Vector2(transform.localScale.x * m_dashSpeed, 0);
 
-        if (IsGrounded()) Instantiate(dashEffect, transform);
+        if (IsGrounded()) Instantiate(m_dashEffect, transform);
 
-        yield return new WaitForSeconds(dashTime);
-        rigidbody2D.gravityScale = gravity;
-        playerStateList.isDashing = false;
-        yield return new WaitForSeconds(dashCooldown);
-        canDash = true;
+        yield return new WaitForSeconds(m_dashTime);
+        m_rigidbody2D.gravityScale = m_gravity;
+        PlayerStateList.IsDashing = false;
+        yield return new WaitForSeconds(m_dashCooldown);
+        m_canDash = true;
     }
 
     private void Attack()
     {
         // Update attack cooldown timer
-        timeSinceAttack += Time.deltaTime;
-        if (isAttacking && timeSinceAttack >= timeBetweenAttacks)
+        m_timeSinceAttack += Time.deltaTime;
+        if (m_isAttacking && m_timeSinceAttack >= m_timeBetweenAttacks)
         {
             // Reset cooldown timer
-            timeSinceAttack = 0f;
-            animator.SetTrigger("Attacking");
+            m_timeSinceAttack = 0f;
+            m_animator.SetTrigger("Attacking");
 
-            if (yAxisInput == 0 || yAxisInput < 0 && IsGrounded())
+            if (m_yAxisInput == 0 || m_yAxisInput < 0 && IsGrounded())
             {
-                Hit(sideAttackPoint, sideAttackArea, ref playerStateList.isRecoilingX, recoilXSpeed);
-                Instantiate(slashEffect, sideAttackPoint);
+                Hit(m_sideAttackPoint, m_sideAttackArea, ref PlayerStateList.IsRecoilingX, m_recoilXSpeed);
+                Instantiate(m_slashEffect, m_sideAttackPoint);
             }
-            else if (yAxisInput > 0)
+            else if (m_yAxisInput > 0)
             {
-                Hit(upAttackPoint, upAttackArea, ref playerStateList.isRecoilingY, recoilYSpeed);
-                SlashEffectAngle(slashEffect, 80, upAttackPoint);
+                Hit(m_upAttackPoint, m_upAttackArea, ref PlayerStateList.IsRecoilingY, m_recoilYSpeed);
+                SlashEffectAngle(m_slashEffect, 80, m_upAttackPoint);
             }
-            else if (yAxisInput < 0 && !IsGrounded())
+            else if (m_yAxisInput < 0 && !IsGrounded())
             {
-                Hit(downAttackPoint, downAttackArea, ref playerStateList.isRecoilingY, recoilYSpeed);
-                SlashEffectAngle(slashEffect, -90, downAttackPoint);
+                Hit(m_downAttackPoint, m_downAttackArea, ref PlayerStateList.IsRecoilingY, m_recoilYSpeed);
+                SlashEffectAngle(m_slashEffect, -90, m_downAttackPoint);
             }
         }
     }
@@ -341,14 +342,14 @@ public class PlayerController : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(sideAttackPoint.position, sideAttackArea);
-        Gizmos.DrawWireCube(upAttackPoint.position, upAttackArea);
-        Gizmos.DrawWireCube(downAttackPoint.position, downAttackArea);
+        Gizmos.DrawWireCube(m_sideAttackPoint.position, m_sideAttackArea);
+        Gizmos.DrawWireCube(m_upAttackPoint.position, m_upAttackArea);
+        Gizmos.DrawWireCube(m_downAttackPoint.position, m_downAttackArea);
     }
 
     private void Hit(Transform _attackTransform, Vector2 _attackArea, ref bool _recoilDir, float _recoilForce)
     {
-        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(_attackTransform.position, _attackArea, 0f, attackableLayer);
+        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(_attackTransform.position, _attackArea, 0f, m_attackableLayer);
         if (hitEnemies.Length > 0)
         {
             Debug.Log("Hit!");
@@ -360,14 +361,14 @@ public class PlayerController : MonoBehaviour
             {
                 enemy.GetComponent<EnemyController>()
                     .EnemyHit(
-                        attackDamage,
+                        m_attackDamage,
                         (transform.position - enemy.transform.position).normalized,
                         _recoilForce
                     );
 
                 if (enemy.CompareTag("Enemy"))
                 {
-                    Mana += manaGain;
+                    Mana += m_manaGain;
                 }
             }
         }
@@ -382,45 +383,45 @@ public class PlayerController : MonoBehaviour
 
     private void Recoil()
     {
-        if (playerStateList.isRecoilingX)
+        if (PlayerStateList.IsRecoilingX)
         {
-            if (playerStateList.isLookingRight)
+            if (PlayerStateList.IsLookingRight)
             {
-                rigidbody2D.linearVelocity = new Vector2(-recoilXSpeed, 0);
+                m_rigidbody2D.linearVelocity = new Vector2(-m_recoilXSpeed, 0);
             }
             else
             {
-                rigidbody2D.linearVelocity = new Vector2(recoilXSpeed, 0);
+                m_rigidbody2D.linearVelocity = new Vector2(m_recoilXSpeed, 0);
             }
         }
 
-        if (playerStateList.isRecoilingY)
+        if (PlayerStateList.IsRecoilingY)
         {
-            if (yAxisInput < 0)
+            if (m_yAxisInput < 0)
             {
-                rigidbody2D.gravityScale = 0;
-                rigidbody2D.linearVelocity = new Vector2(rigidbody2D.linearVelocity.x, recoilYSpeed);
+                m_rigidbody2D.gravityScale = 0;
+                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_recoilYSpeed);
             }
             else
             {
-                rigidbody2D.linearVelocity = new Vector2(rigidbody2D.linearVelocity.x, -recoilYSpeed);
+                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, -m_recoilYSpeed);
             }
 
-            airJumpCounter = 0;
+            m_airJumpCounter = 0;
         }
         else
         {
-            rigidbody2D.gravityScale = gravity;
+            m_rigidbody2D.gravityScale = m_gravity;
         }
 
         // Stop recoil effects
-        if (playerStateList.isRecoilingX && stepsXRecoiled < recoilXSteps)
+        if (PlayerStateList.IsRecoilingX && m_stepsXRecoiled < m_recoilXSteps)
         {
-            stepsXRecoiled++;
+            m_stepsXRecoiled++;
         }
-        else if (playerStateList.isRecoilingY && stepsYRecoiled < recoilYSteps)
+        else if (PlayerStateList.IsRecoilingY && m_stepsYRecoiled < m_recoilYSteps)
         {
-            stepsYRecoiled++;
+            m_stepsYRecoiled++;
         }
         else
         {
@@ -436,14 +437,14 @@ public class PlayerController : MonoBehaviour
 
     private void StopRecoilX()
     {
-        stepsXRecoiled = 0;
-        playerStateList.isRecoilingX = false;
+        m_stepsXRecoiled = 0;
+        PlayerStateList.IsRecoilingX = false;
     }
 
     private void StopRecoilY()
     {
-        stepsYRecoiled = 0;
-        playerStateList.isRecoilingY = false;
+        m_stepsYRecoiled = 0;
+        PlayerStateList.IsRecoilingY = false;
     }
 
     public void TakeDamage(float _damage)
@@ -454,20 +455,20 @@ public class PlayerController : MonoBehaviour
 
     private IEnumerator StopTakingDamage()
     {
-        playerStateList.isInvincible = true;
+        PlayerStateList.IsInvincible = true;
 
-        GameObject bloodSpurt = Instantiate(bloodSpurtPrefab, transform.position, Quaternion.identity);
+        GameObject bloodSpurt = Instantiate(m_bloodSpurtPrefab, transform.position, Quaternion.identity);
         Destroy(bloodSpurt, 1.5f);
 
-        animator.SetTrigger("Hurt");
+        m_animator.SetTrigger("Hurt");
 
         yield return new WaitForSeconds(1f); // Duration of invincibility
-        playerStateList.isInvincible = false;
+        PlayerStateList.IsInvincible = false;
     }
 
     public void HitStopTime(float _newTimeScale, int _restoreSpeed, float _delay)
     {
-        restoreTimeSpeed = _restoreSpeed;
+        m_restoreTimeSpeed = _restoreSpeed;
         Time.timeScale = _newTimeScale;
 
         if (_delay > 0)
@@ -477,66 +478,66 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            restoreTime = true;
+            m_restoreTime = true;
         }
     }
 
     private IEnumerator ResetTimeScale(float _delay)
     {
-        restoreTime = true;
+        m_restoreTime = true;
         yield return new WaitForSeconds(_delay);
     }
 
     private void RestoreTimeScale()
     {
-        if (restoreTime)
+        if (m_restoreTime)
         {
             if (Time.timeScale < 1f)
             {
-                Time.timeScale += restoreTimeSpeed * Time.deltaTime;
+                Time.timeScale += m_restoreTimeSpeed * Time.deltaTime;
             }
             else
             {
                 Time.timeScale = 1f;
-                restoreTime = false;
+                m_restoreTime = false;
             }
         }
     }
 
     private void FlashWhileInvincible()
     {
-        spriteRenderer.material.color = playerStateList.isInvincible
-        ? Color.Lerp(Color.white, Color.black, Mathf.PingPong(Time.time * hitFlashSpeed, 1f))
+        m_spriteRenderer.material.color = PlayerStateList.IsInvincible
+        ? Color.Lerp(Color.white, Color.black, Mathf.PingPong(Time.time * m_hitFlashSpeed, 1f))
         : Color.white;
     }
 
     private void Heal()
     {
         if (Input.GetButton("Healing")
-                && Health < maxHealth
+                && Health < MaxHealth
                 && Mana > 0
-                && !playerStateList.isJumping
-                && !playerStateList.isDashing)
+                && !PlayerStateList.IsJumping
+                && !PlayerStateList.IsDashing)
         {
-            playerStateList.isHealing = true;
-            animator.SetBool("isHealing", true);
+            PlayerStateList.IsHealing = true;
+            m_animator.SetBool("isHealing", true);
 
-            healTimer += Time.deltaTime;
+            m_healTimer += Time.deltaTime;
 
-            if (healTimer >= timeToHeal)
+            if (m_healTimer >= m_timeToHeal)
             {
                 Health++;
-                healTimer = 0;
+                m_healTimer = 0;
             }
 
             // Drain mana
-            Mana -= Time.deltaTime * manaDrainSpeed;
+            Mana -= Time.deltaTime * m_manaDrainSpeed;
         }
         else
         {
-            playerStateList.isHealing = false;
-            animator.SetBool("isHealing", false);
-            healTimer = 0;
+            PlayerStateList.IsHealing = false;
+            m_animator.SetBool("isHealing", false);
+            m_healTimer = 0;
         }
     }
 }

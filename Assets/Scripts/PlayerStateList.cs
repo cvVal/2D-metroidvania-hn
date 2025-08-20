@@ -2,10 +2,10 @@ using UnityEngine;
 
 public class PlayerStateList : MonoBehaviour
 {
-    public bool isJumping = false;
-    public bool isDashing = false;
-    public bool isRecoilingX = false, isRecoilingY = false;
-    public bool isLookingRight = false;
-    public bool isInvincible = false;
-    public bool isHealing = false;
+    public bool IsJumping = false;
+    public bool IsDashing = false;
+    public bool IsRecoilingX = false, IsRecoilingY = false;
+    public bool IsLookingRight = false;
+    public bool IsInvincible = false;
+    public bool IsHealing = false;
 }
