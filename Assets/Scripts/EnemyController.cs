@@ -13,15 +13,9 @@ public class EnemyController : MonoBehaviour
     protected float m_recoilTimer = 0f;
     protected Rigidbody2D m_rigidbody2D;
 
-    protected virtual void Awake()
-    {
-        m_rigidbody2D = GetComponent<Rigidbody2D>();
-    }
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     protected virtual void Start()
     {
-
+        m_rigidbody2D = GetComponent<Rigidbody2D>();
     }
 
     // Update is called once per frame

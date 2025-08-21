@@ -351,7 +351,7 @@ MonoBehaviour:
   m_dashTime: 0.2
   m_dashCooldown: 0.35
   m_groundCheck: {fileID: 441761021}
-  m_groundCheckX: 0.5
+  m_groundCheckX: 0.4
   m_groundCheckY: 0.2
   m_groundLayer:
     serializedVersion: 2

@@ -89,8 +89,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector2 m_downAttackArea;
     [SerializeField] private LayerMask m_attackableLayer; // Layer mask for attackable objects
     [SerializeField] private GameObject m_slashEffect; // Visual effect for attacks
-    private bool m_restoreTime;
-    private float m_restoreTimeSpeed;
+    // COMMENTED OUT: Time manipulation variables to remove slow-motion effect
+    // private bool m_restoreTime;
+    // private float m_restoreTimeSpeed;
     [Space(5f)]
 
     // ========================================================== //
@@ -108,12 +109,13 @@ public class PlayerController : MonoBehaviour
     [Header("Spell Settings")]
     [SerializeField][Range(0f, 1f)] private float m_manaSpellCost = 0.3f;
     [SerializeField][Min(0f)] private float m_timeBetweenCast = 0.5f;
-    private float m_timeSinceCast;
     [SerializeField] private float m_spellDamage;
     [SerializeField] private float m_downSpellForce;
     [SerializeField] private GameObject m_sideSpellFireball;
     [SerializeField] private GameObject m_downSpellFireball;
     [SerializeField] private GameObject m_upSpellExplosion;
+    private float m_timeSinceCast;
+    private float m_castOrHealTimer;
     [Space(5f)]
 
     [Header("Timing Settings")]
@@ -125,8 +127,14 @@ public class PlayerController : MonoBehaviour
 
     private Rigidbody2D m_rigidbody2D;
     private float m_xAxisInput, m_yAxisInput;
-    private bool m_jumpPressed, m_jumpReleased, m_dashPressed, m_attackPressed, m_healHeld, m_castPressed;
+    private bool m_jumpPressed, m_jumpReleased, m_dashPressed, m_attackPressed, m_healHeld, m_castReleased, m_castOrHealPressed;
     private bool m_isGroundedCached; // ground state cached per Update
+
+    // Physics input buffering for FixedUpdate
+    private float m_moveInputBuffered;
+    private bool m_jumpRequestBuffered;
+    private bool m_jumpCutRequestBuffered;
+    private bool m_downSpellForceActive;
 
     private Animator m_animator;
 
@@ -192,6 +200,7 @@ public class PlayerController : MonoBehaviour
         }
 
         PlayerStateList = GetComponent<PlayerStateList>();
+        DontDestroyOnLoad(gameObject);
     }
 
     void OnValidate()
@@ -210,6 +219,13 @@ public class PlayerController : MonoBehaviour
         m_spriteRenderer = GetComponent<SpriteRenderer>();
         Mana = m_mana;
         m_manaStorage.fillAmount = Mana;
+        
+        m_jumpBufferCounter = 0;
+        m_coyoteTimeCounter = 0;
+        m_airJumpCounter = 0;
+        m_jumpRequestBuffered = false;
+        m_jumpCutRequestBuffered = false;
+        PlayerStateList.IsJumping = false;
     }
 
     // Update is called once per frame
@@ -219,25 +235,35 @@ public class PlayerController : MonoBehaviour
         m_isGroundedCached = IsGrounded(); // cache once per frame
         UpdateJumpState();
 
+        // Buffer physics inputs for FixedUpdate
+        BufferPhysicsInputs();
+
         if (PlayerStateList.IsDashing) return; // still allow recoil in FixedUpdate only
 
         RestoreTimeScale();
         FlashWhileInvincible();
-        Move();
         Heal();
         CastSpell();
 
         if (PlayerStateList.IsHealing) return;
 
         Flip();
-        Jump();
         StartDash();
         Attack();
     }
 
     void FixedUpdate()
     {
-        if (PlayerStateList.IsDashing) return; // Skip movement and jumping if dashing
+        if (PlayerStateList.IsDashing)
+        {
+            Recoil(); // still allow recoil during dash
+            return;
+        }
+
+        // Apply all physics operations in FixedUpdate
+        ApplyMovement();
+        ApplyJump();
+        ApplyDownSpellForce();
         Recoil();
     }
 
@@ -249,43 +275,82 @@ public class PlayerController : MonoBehaviour
         m_jumpReleased = Input.GetButtonUp("Jump");
         m_dashPressed = Input.GetButtonDown("Dash");
         m_attackPressed = Input.GetButtonDown("Attack");
-        m_healHeld = Input.GetButton("Healing");
-        m_castPressed = Input.GetButtonDown("CastSpell");
+        m_healHeld = Input.GetButton("Cast/Heal");
+        m_castReleased = Input.GetButtonUp("Cast/Heal");
         m_isAttacking = m_attackPressed;
+        m_castOrHealPressed = m_healHeld;
+        if (m_castOrHealPressed)
+        {
+            m_castOrHealTimer += Time.deltaTime;
+        }
+        else
+        {
+            m_castOrHealTimer = 0;
+        }
     }
 
-    private void Move()
+    private void BufferPhysicsInputs()
+    {
+        // Buffer movement input for FixedUpdate
+        m_moveInputBuffered = m_xAxisInput;
+        
+        // Buffer jump requests
+        if (m_jumpPressed)
+            m_jumpRequestBuffered = true;
+            
+        if (m_jumpReleased && m_rigidbody2D.linearVelocity.y > 0)
+            m_jumpCutRequestBuffered = true;
+    }
+
+    private void ApplyMovement()
     {
         if (PlayerStateList.IsHealing) return;
 
-        m_rigidbody2D.linearVelocity = new Vector2(m_xAxisInput * m_walkSpeed, m_rigidbody2D.linearVelocity.y);
+        m_rigidbody2D.linearVelocity = new Vector2(m_moveInputBuffered * m_walkSpeed, m_rigidbody2D.linearVelocity.y);
         m_animator.SetBool(IsWalkingHash, m_rigidbody2D.linearVelocity.x != 0 && m_isGroundedCached);
     }
 
-    private void Jump()
+    private void ApplyJump()
     {
-        if (m_jumpReleased && m_rigidbody2D.linearVelocity.y > 0)
+        // Handle jump cut first
+        if (m_jumpCutRequestBuffered && m_rigidbody2D.linearVelocity.y > 3)
         {
             m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, 0);
             PlayerStateList.IsJumping = false;
+            m_jumpCutRequestBuffered = false;
         }
 
-        if (!PlayerStateList.IsJumping)
+        // Handle jump initiation - only if there's a jump request
+        if (m_jumpRequestBuffered)
         {
-            if (m_jumpBufferCounter > 0 && m_coyoteTimeCounter > 0)
+            // Ground jump (including coyote time)
+            if (m_jumpBufferCounter > 0 && m_coyoteTimeCounter > 0 && !PlayerStateList.IsJumping)
             {
                 m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
                 PlayerStateList.IsJumping = true;
+                m_coyoteTimeCounter = 0; // Clear coyote time after jump
             }
-            else if (!m_isGroundedCached && m_airJumpCounter < m_maxAirJumps && m_jumpPressed)
+            // Air jump (double jump, triple jump, etc.)
+            else if (!m_isGroundedCached && m_airJumpCounter < m_maxAirJumps)
             {
-                PlayerStateList.IsJumping = true;
                 m_airJumpCounter++;
                 m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
+                PlayerStateList.IsJumping = true; // Ensure we're in jumping state
             }
+            
+            // Clear jump request after attempting jump
+            m_jumpRequestBuffered = false;
         }
 
         m_animator.SetBool(IsJumpingHash, !m_isGroundedCached);
+    }
+
+    private void ApplyDownSpellForce()
+    {
+        if (m_downSpellForceActive && m_downSpellFireball.activeInHierarchy)
+        {
+            m_rigidbody2D.linearVelocity += m_downSpellForce * Vector2.down;
+        }
     }
 
     private bool IsGrounded()
@@ -326,14 +391,18 @@ public class PlayerController : MonoBehaviour
             m_coyoteTimeCounter -= Time.deltaTime;
         }
 
+        // Update jump buffer - only when jump is actually pressed
         if (m_jumpPressed)
         {
             m_jumpBufferCounter = m_jumpBufferFrames;
         }
-        else
+        else if (m_jumpBufferCounter > 0)
         {
-            m_jumpBufferCounter -= Time.deltaTime * 10;
+            m_jumpBufferCounter -= Time.deltaTime * 60; // Convert frames to time-based countdown
         }
+        
+        // Clamp jump buffer to prevent negative values
+        m_jumpBufferCounter = Mathf.Max(0, m_jumpBufferCounter);
     }
 
     private void StartDash()
@@ -356,7 +425,8 @@ public class PlayerController : MonoBehaviour
         m_animator.SetTrigger(DashingHash);
 
         m_rigidbody2D.gravityScale = 0;
-        m_rigidbody2D.linearVelocity = new Vector2(transform.localScale.x * m_dashSpeed, 0);
+        int direction = PlayerStateList.IsLookingRight ? 1 : -1;
+        m_rigidbody2D.linearVelocity = new Vector2(direction * m_dashSpeed, 0);
         if (IsGrounded() && m_dashEffect != null) Instantiate(m_dashEffect, transform);
 
         yield return new WaitForSeconds(m_dashTime);
@@ -527,42 +597,48 @@ public class PlayerController : MonoBehaviour
 
     public void HitStopTime(float _newTimeScale, int _restoreSpeed, float _delay)
     {
-        _newTimeScale = Mathf.Max(_newTimeScale, 0.01f);
+        // COMMENTED OUT: Time scale manipulation to remove slow-motion effect
+        // _newTimeScale = Mathf.Max(_newTimeScale, 0.01f);
 
-        m_restoreTimeSpeed = _restoreSpeed;
-        Time.timeScale = _newTimeScale;
+        // m_restoreTimeSpeed = _restoreSpeed;
+        // Time.timeScale = _newTimeScale;
 
-        if (_delay > 0)
-        {
-            if (m_timeScaleCoroutine != null) StopCoroutine(m_timeScaleCoroutine);
-            m_timeScaleCoroutine = StartCoroutine(ResetTimeScale(_delay));
-        }
-        else
-        {
-            m_restoreTime = true;
-        }
+        // if (_delay > 0)
+        // {
+        //     if (m_timeScaleCoroutine != null) StopCoroutine(m_timeScaleCoroutine);
+        //     m_timeScaleCoroutine = StartCoroutine(ResetTimeScale(_delay));
+        // }
+        // else
+        // {
+        //     m_restoreTime = true;
+        // }
+
+        // Visual feedback and invincibility are handled elsewhere (FlashWhileInvincible, StopTakingDamage)
     }
 
     private IEnumerator ResetTimeScale(float _delay)
     {
-        yield return new WaitForSecondsRealtime(_delay);
-        m_restoreTime = true;
+        // COMMENTED OUT: Time scale reset coroutine to remove slow-motion effect
+        // yield return new WaitForSecondsRealtime(_delay);
+        // m_restoreTime = true;
+        yield break;
     }
 
     private void RestoreTimeScale()
     {
-        if (m_restoreTime)
-        {
-            if (Time.timeScale < 1f)
-            {
-                Time.timeScale += m_restoreTimeSpeed * Time.unscaledDeltaTime;
-            }
-            else
-            {
-                Time.timeScale = 1f;
-                m_restoreTime = false;
-            }
-        }
+        // COMMENTED OUT: Time scale restoration to remove slow-motion effect
+        // if (m_restoreTime)
+        // {
+        //     if (Time.timeScale < 1f)
+        //     {
+        //         Time.timeScale += m_restoreTimeSpeed * Time.unscaledDeltaTime;
+        //     }
+        //     else
+        //     {
+        //         Time.timeScale = 1f;
+        //         m_restoreTime = false;
+        //     }
+        // }
     }
 
     private void FlashWhileInvincible()
@@ -575,10 +651,11 @@ public class PlayerController : MonoBehaviour
     private void Heal()
     {
         if (m_healHeld
+            && m_castOrHealTimer > 0.05f
             && Health < MaxHealth
-                    && Mana > 0
+            && Mana > 0
             && m_isGroundedCached
-                    && !PlayerStateList.IsDashing)
+            && !PlayerStateList.IsDashing)
         {
             PlayerStateList.IsHealing = true;
             m_animator.SetBool(IsHealingHash, true);
@@ -604,7 +681,8 @@ public class PlayerController : MonoBehaviour
 
     private void CastSpell()
     {
-        if (m_castPressed
+        if (m_castReleased
+                && m_castOrHealTimer <= 0.05f
                 && m_timeSinceCast >= m_timeBetweenCast
                 && Mana >= m_manaSpellCost)
         {
@@ -620,12 +698,11 @@ public class PlayerController : MonoBehaviour
         if (m_isGroundedCached)
         {
             m_downSpellFireball.SetActive(false); // Disable downspell if on the ground
+            m_downSpellForceActive = false;
         }
 
-        if (m_downSpellFireball.activeInHierarchy)
-        {
-            m_rigidbody2D.linearVelocity += m_downSpellForce * Vector2.down;
-        }
+        // Set flag for FixedUpdate to apply force
+        m_downSpellForceActive = m_downSpellFireball.activeInHierarchy;
     }
 
     private IEnumerator CastSpellCoroutine()
