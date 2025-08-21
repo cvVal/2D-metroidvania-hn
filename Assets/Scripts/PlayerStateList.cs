@@ -8,4 +8,5 @@ public class PlayerStateList : MonoBehaviour
     public bool IsLookingRight = false;
     public bool IsInvincible = false;
     public bool IsHealing = false;
+    public bool IsCasting = false;
 }

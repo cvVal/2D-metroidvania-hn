@@ -68,10 +68,15 @@ public class EnemyController : MonoBehaviour
 
     protected void OnCollisionStay2D(Collision2D _other)
     {
-        if (_other.gameObject.CompareTag("Player") && !PlayerController.Instance.PlayerStateList.IsInvincible)
+        if (_other.gameObject.CompareTag("Player"))
         {
-            Attack();
-            PlayerController.Instance.HitStopTime(0, 5, .2f);
+            PlayerController pc = PlayerController.Instance;
+            // Skip damaging & hitstop while player actively performing down spell (prevents self-hit slowdown)
+            if (!pc.PlayerStateList.IsInvincible && !pc.IsDownSpellActive)
+            {
+                Attack();
+                pc.HitStopTime(0.1f, 2, .2f);
+            }
         }
     }
 }

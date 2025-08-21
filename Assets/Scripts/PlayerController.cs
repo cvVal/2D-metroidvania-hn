@@ -1,7 +1,6 @@
-using System;
 using System.Collections;
-using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlayerController : MonoBehaviour
 {
@@ -9,10 +8,10 @@ public class PlayerController : MonoBehaviour
 
     [Header("Health Settings")]
     [SerializeField] private int m_health;
-    [SerializeField] public int MaxHealth;
-    [SerializeField] private float m_hitFlashSpeed;
+    [SerializeField] private int m_maxHealth; // encapsulated backing field
+    [SerializeField][Min(0f)] private float m_hitFlashSpeed;
     public delegate void OnHealthChangedDelegate();
-    [HideInInspector] public OnHealthChangedDelegate OnHealthChangedCallback;
+    public event OnHealthChangedDelegate OnHealthChangedCallback; // safer than exposing delegate field
 
     private float m_healTimer;
     [SerializeField] private float m_timeToHeal;
@@ -23,22 +22,23 @@ public class PlayerController : MonoBehaviour
     // ========================================================== //
 
     [Header("Mana Settings")]
-    [SerializeField] private float m_mana;
-    [SerializeField] private float m_manaDrainSpeed;
-    [SerializeField] private float m_manaGain;
+    [SerializeField][Range(0f, 1f)] private float m_mana;
+    [SerializeField][Min(0f)] private float m_manaDrainSpeed;
+    [SerializeField][Range(0f, 1f)] private float m_manaGain;
+    [SerializeField] private Image m_manaStorage;
 
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Player Movement Settings")]
-    [SerializeField] private float m_walkSpeed = 5f;
+    [SerializeField][Min(0f)] private float m_walkSpeed = 5f;
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Jump Settings")]
-    [SerializeField] private float m_jumpForce = 45f; // Force applied when jumping (higher = higher jumps)
+    [SerializeField][Min(0f)] private float m_jumpForce = 45f; // Force applied when jumping (higher = higher jumps)
 
     // Jump Buffer: Allows player to press jump slightly before landing and still jump
     private float m_jumpBufferCounter = 0; // Current buffer timer countdown
@@ -57,9 +57,9 @@ public class PlayerController : MonoBehaviour
 
     [Header("Dash Settings")]
     [SerializeField] private GameObject m_dashEffect; // Visual effect spawned during dash
-    [SerializeField] private float m_dashSpeed = 20f; // Speed during dash movement
-    [SerializeField] private float m_dashTime = 0.2f; // Duration of dash in seconds
-    [SerializeField] private float m_dashCooldown = 1f; // Cooldown before dash can be used again
+    [SerializeField][Min(0f)] private float m_dashSpeed = 20f; // Speed during dash movement
+    [SerializeField][Min(0f)] private float m_dashTime = 0.2f; // Duration of dash in seconds
+    [SerializeField][Min(0f)] private float m_dashCooldown = 1f; // Cooldown before dash can be used again
     private bool m_canDash = true; // Whether dash is available (not on cooldown)
     private float m_gravity; // Stores original gravity to restore after dash
     private bool m_isDashing = false; // Current dash state flag
@@ -77,15 +77,15 @@ public class PlayerController : MonoBehaviour
     // ========================================================== //
 
     [Header("Attack Settings")]
-    [SerializeField] private float m_attackDamage = 10f; // Damage dealt by attacks
-    [SerializeField] private float m_timeBetweenAttacks; // Cooldown between attacks
+    [SerializeField][Min(0f)] private float m_attackDamage = 10f; // Damage dealt by attacks
+    [SerializeField][Min(0f)] private float m_timeBetweenAttacks; // Cooldown between attacks
     private float m_timeSinceAttack;
     private bool m_isAttacking = false; // Whether attack input was pressed this frame
     [SerializeField] private Transform m_sideAttackPoint;
-    [SerializeField] private Transform m_upAttackPoint;
-    [SerializeField] private Transform m_downAttackPoint;
     [SerializeField] private Vector2 m_sideAttackArea;
+    [SerializeField] private Transform m_upAttackPoint;
     [SerializeField] private Vector2 m_upAttackArea;
+    [SerializeField] private Transform m_downAttackPoint;
     [SerializeField] private Vector2 m_downAttackArea;
     [SerializeField] private LayerMask m_attackableLayer; // Layer mask for attackable objects
     [SerializeField] private GameObject m_slashEffect; // Visual effect for attacks
@@ -105,14 +105,46 @@ public class PlayerController : MonoBehaviour
 
     // ========================================================== //
 
+    [Header("Spell Settings")]
+    [SerializeField][Range(0f, 1f)] private float m_manaSpellCost = 0.3f;
+    [SerializeField][Min(0f)] private float m_timeBetweenCast = 0.5f;
+    private float m_timeSinceCast;
+    [SerializeField] private float m_spellDamage;
+    [SerializeField] private float m_downSpellForce;
+    [SerializeField] private GameObject m_sideSpellFireball;
+    [SerializeField] private GameObject m_downSpellFireball;
+    [SerializeField] private GameObject m_upSpellExplosion;
+    [Space(5f)]
+
+    [Header("Timing Settings")]
+    [SerializeField][Min(0f)] private float m_invincibilityDuration = 1f;
+    [SerializeField][Min(0f)] private float m_spellCastWindup = 0.15f;
+    [SerializeField][Min(0f)] private float m_spellCastRecovery = 0.35f;
+
+    // ========================================================== //
+
     private Rigidbody2D m_rigidbody2D;
     private float m_xAxisInput, m_yAxisInput;
+    private bool m_jumpPressed, m_jumpReleased, m_dashPressed, m_attackPressed, m_healHeld, m_castPressed;
+    private bool m_isGroundedCached; // ground state cached per Update
 
     private Animator m_animator;
 
     [HideInInspector] public PlayerStateList PlayerStateList;
 
     private SpriteRenderer m_spriteRenderer;
+
+    // Animator parameter hashes (cached to avoid repeated string lookups)
+    static readonly int IsWalkingHash = Animator.StringToHash("IsWalking");
+    static readonly int IsJumpingHash = Animator.StringToHash("IsJumping");
+    static readonly int DashingHash = Animator.StringToHash("Dashing");
+    static readonly int AttackingHash = Animator.StringToHash("Attacking");
+    static readonly int HurtHash = Animator.StringToHash("Hurt");
+    static readonly int IsHealingHash = Animator.StringToHash("IsHealing");
+    static readonly int IsCastingHash = Animator.StringToHash("IsCasting");
+
+    // Coroutine handle for controlled time scale reset
+    private Coroutine m_timeScaleCoroutine;
 
     // ========================================================== //
 
@@ -124,11 +156,15 @@ public class PlayerController : MonoBehaviour
             if (m_health != value)
             {
                 m_health = Mathf.Clamp(value, 0, MaxHealth);
-
                 OnHealthChangedCallback?.Invoke();
             }
         }
     }
+
+    public int MaxHealth => m_maxHealth;
+    public bool IsDownSpellActive => m_downSpellFireball != null && m_downSpellFireball.activeInHierarchy; // helper for external damage checks
+
+    public event System.Action<float> OnManaChanged; // passes new mana value
 
     float Mana
     {
@@ -138,6 +174,8 @@ public class PlayerController : MonoBehaviour
             if (m_mana != value)
             {
                 m_mana = Mathf.Clamp(value, 0, 1);
+                m_manaStorage.fillAmount = Mana;
+                OnManaChanged?.Invoke(m_mana);
             }
         }
     }
@@ -156,6 +194,12 @@ public class PlayerController : MonoBehaviour
         PlayerStateList = GetComponent<PlayerStateList>();
     }
 
+    void OnValidate()
+    {
+        if (m_maxHealth < 1) m_maxHealth = 1;
+        if (m_health > m_maxHealth) m_health = m_maxHealth;
+    }
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -165,25 +209,30 @@ public class PlayerController : MonoBehaviour
         Health = MaxHealth;
         m_spriteRenderer = GetComponent<SpriteRenderer>();
         Mana = m_mana;
+        m_manaStorage.fillAmount = Mana;
     }
 
     // Update is called once per frame
     void Update()
     {
         GetInputs();
+        m_isGroundedCached = IsGrounded(); // cache once per frame
         UpdateJumpState();
 
-        if (PlayerStateList.IsDashing) return; // Skip movement and jumping if dashing
-        // if (playerStateList.isAttacking) return; // Skip movement and jumping if attacking
+        if (PlayerStateList.IsDashing) return; // still allow recoil in FixedUpdate only
+
+        RestoreTimeScale();
+        FlashWhileInvincible();
+        Move();
+        Heal();
+        CastSpell();
+
+        if (PlayerStateList.IsHealing) return;
 
         Flip();
-        Move();
         Jump();
         StartDash();
         Attack();
-        RestoreTimeScale();
-        FlashWhileInvincible();
-        Heal();
     }
 
     void FixedUpdate()
@@ -196,18 +245,26 @@ public class PlayerController : MonoBehaviour
     {
         m_xAxisInput = Input.GetAxis("Horizontal");
         m_yAxisInput = Input.GetAxis("Vertical");
-        m_isAttacking = Input.GetButtonDown("Fire1"); // Uses Input Manager settings (left ctrl OR left mouse)
+        m_jumpPressed = Input.GetButtonDown("Jump");
+        m_jumpReleased = Input.GetButtonUp("Jump");
+        m_dashPressed = Input.GetButtonDown("Dash");
+        m_attackPressed = Input.GetButtonDown("Attack");
+        m_healHeld = Input.GetButton("Healing");
+        m_castPressed = Input.GetButtonDown("CastSpell");
+        m_isAttacking = m_attackPressed;
     }
 
     private void Move()
     {
+        if (PlayerStateList.IsHealing) return;
+
         m_rigidbody2D.linearVelocity = new Vector2(m_xAxisInput * m_walkSpeed, m_rigidbody2D.linearVelocity.y);
-        m_animator.SetBool("isWalking", m_rigidbody2D.linearVelocity.x != 0 && IsGrounded());
+        m_animator.SetBool(IsWalkingHash, m_rigidbody2D.linearVelocity.x != 0 && m_isGroundedCached);
     }
 
     private void Jump()
     {
-        if (Input.GetButtonUp("Jump") && m_rigidbody2D.linearVelocity.y > 0)
+        if (m_jumpReleased && m_rigidbody2D.linearVelocity.y > 0)
         {
             m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, 0);
             PlayerStateList.IsJumping = false;
@@ -220,7 +277,7 @@ public class PlayerController : MonoBehaviour
                 m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
                 PlayerStateList.IsJumping = true;
             }
-            else if (!IsGrounded() && m_airJumpCounter < m_maxAirJumps && Input.GetButtonDown("Jump"))
+            else if (!m_isGroundedCached && m_airJumpCounter < m_maxAirJumps && m_jumpPressed)
             {
                 PlayerStateList.IsJumping = true;
                 m_airJumpCounter++;
@@ -228,7 +285,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        m_animator.SetBool("isJumping", !IsGrounded());
+        m_animator.SetBool(IsJumpingHash, !m_isGroundedCached);
     }
 
     private bool IsGrounded()
@@ -258,7 +315,7 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateJumpState()
     {
-        if (IsGrounded())
+        if (m_isGroundedCached)
         {
             PlayerStateList.IsJumping = false;
             m_coyoteTimeCounter = m_coyoteTime;
@@ -269,7 +326,7 @@ public class PlayerController : MonoBehaviour
             m_coyoteTimeCounter -= Time.deltaTime;
         }
 
-        if (Input.GetButtonDown("Jump"))
+        if (m_jumpPressed)
         {
             m_jumpBufferCounter = m_jumpBufferFrames;
         }
@@ -281,13 +338,12 @@ public class PlayerController : MonoBehaviour
 
     private void StartDash()
     {
-        if (Input.GetButtonDown("Dash") && m_canDash && !m_isDashing)
+        if (m_dashPressed && m_canDash && !m_isDashing)
         {
             StartCoroutine(Dash());
             m_isDashing = true;
         }
-
-        if (IsGrounded())
+        if (m_isGroundedCached)
         {
             m_isDashing = false;
         }
@@ -297,12 +353,11 @@ public class PlayerController : MonoBehaviour
     {
         m_canDash = false;
         PlayerStateList.IsDashing = true;
-        m_animator.SetTrigger("Dashing");
+        m_animator.SetTrigger(DashingHash);
 
         m_rigidbody2D.gravityScale = 0;
         m_rigidbody2D.linearVelocity = new Vector2(transform.localScale.x * m_dashSpeed, 0);
-
-        if (IsGrounded()) Instantiate(m_dashEffect, transform);
+        if (IsGrounded() && m_dashEffect != null) Instantiate(m_dashEffect, transform);
 
         yield return new WaitForSeconds(m_dashTime);
         m_rigidbody2D.gravityScale = m_gravity;
@@ -319,22 +374,22 @@ public class PlayerController : MonoBehaviour
         {
             // Reset cooldown timer
             m_timeSinceAttack = 0f;
-            m_animator.SetTrigger("Attacking");
+            m_animator.SetTrigger(AttackingHash);
 
-            if (m_yAxisInput == 0 || m_yAxisInput < 0 && IsGrounded())
+            if (m_yAxisInput == 0 || m_yAxisInput < 0 && m_isGroundedCached)
             {
                 Hit(m_sideAttackPoint, m_sideAttackArea, ref PlayerStateList.IsRecoilingX, m_recoilXSpeed);
-                Instantiate(m_slashEffect, m_sideAttackPoint);
+                if (m_slashEffect != null) Instantiate(m_slashEffect, m_sideAttackPoint);
             }
             else if (m_yAxisInput > 0)
             {
                 Hit(m_upAttackPoint, m_upAttackArea, ref PlayerStateList.IsRecoilingY, m_recoilYSpeed);
-                SlashEffectAngle(m_slashEffect, 80, m_upAttackPoint);
+                if (m_slashEffect != null) SlashEffectAngle(m_slashEffect, 80, m_upAttackPoint);
             }
-            else if (m_yAxisInput < 0 && !IsGrounded())
+            else if (m_yAxisInput < 0 && !m_isGroundedCached)
             {
                 Hit(m_downAttackPoint, m_downAttackArea, ref PlayerStateList.IsRecoilingY, m_recoilYSpeed);
-                SlashEffectAngle(m_slashEffect, -90, m_downAttackPoint);
+                if (m_slashEffect != null) SlashEffectAngle(m_slashEffect, -90, m_downAttackPoint);
             }
         }
     }
@@ -349,28 +404,39 @@ public class PlayerController : MonoBehaviour
 
     private void Hit(Transform _attackTransform, Vector2 _attackArea, ref bool _recoilDir, float _recoilForce)
     {
-        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(_attackTransform.position, _attackArea, 0f, m_attackableLayer);
-        if (hitEnemies.Length > 0)
-        {
-            Debug.Log("Hit!");
-            _recoilDir = true;
-        }
-        foreach (Collider2D enemy in hitEnemies)
-        {
-            if (enemy.GetComponent<EnemyController>() != null)
-            {
-                enemy.GetComponent<EnemyController>()
-                    .EnemyHit(
-                        m_attackDamage,
-                        (transform.position - enemy.transform.position).normalized,
-                        _recoilForce
-                    );
+        // Early return if no attack transform provided
+        if (_attackTransform == null) return;
 
-                if (enemy.CompareTag("Enemy"))
-                {
-                    Mana += m_manaGain;
-                }
-            }
+        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(_attackTransform.position, _attackArea, 0f, m_attackableLayer);
+
+        // Early return if no enemies hit
+        if (hitEnemies.Length == 0) return;
+
+        _recoilDir = true;
+
+        // Process each hit enemy
+        foreach (Collider2D enemyCollider in hitEnemies)
+        {
+            ProcessEnemyHit(enemyCollider, _recoilForce);
+        }
+    }
+
+    private void ProcessEnemyHit(Collider2D _enemyCollider, float _recoilForce)
+    {
+        EnemyController enemyController = _enemyCollider.GetComponent<EnemyController>();
+
+        if (enemyController == null) return;
+
+        // Calculate attack direction from player to enemy
+        Vector2 attackDirection = (_enemyCollider.transform.position - transform.position).normalized;
+
+        // Apply damage to enemy
+        enemyController.EnemyHit(m_attackDamage, attackDirection, _recoilForce);
+
+        // Grant mana if this is a tagged enemy
+        if (_enemyCollider.CompareTag("Enemy"))
+        {
+            Mana += m_manaGain;
         }
     }
 
@@ -383,36 +449,8 @@ public class PlayerController : MonoBehaviour
 
     private void Recoil()
     {
-        if (PlayerStateList.IsRecoilingX)
-        {
-            if (PlayerStateList.IsLookingRight)
-            {
-                m_rigidbody2D.linearVelocity = new Vector2(-m_recoilXSpeed, 0);
-            }
-            else
-            {
-                m_rigidbody2D.linearVelocity = new Vector2(m_recoilXSpeed, 0);
-            }
-        }
-
-        if (PlayerStateList.IsRecoilingY)
-        {
-            if (m_yAxisInput < 0)
-            {
-                m_rigidbody2D.gravityScale = 0;
-                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_recoilYSpeed);
-            }
-            else
-            {
-                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, -m_recoilYSpeed);
-            }
-
-            m_airJumpCounter = 0;
-        }
-        else
-        {
-            m_rigidbody2D.gravityScale = m_gravity;
-        }
+        if (PlayerStateList.IsRecoilingX) ApplyHorizontalRecoil();
+        if (PlayerStateList.IsRecoilingY) ApplyVerticalRecoil(); else m_rigidbody2D.gravityScale = m_gravity;
 
         // Stop recoil effects
         if (PlayerStateList.IsRecoilingX && m_stepsXRecoiled < m_recoilXSteps)
@@ -429,10 +467,30 @@ public class PlayerController : MonoBehaviour
             StopRecoilY();
         }
 
-        if (IsGrounded())
+        if (m_isGroundedCached)
         {
             StopRecoilY();
         }
+    }
+
+    private void ApplyHorizontalRecoil()
+    {
+        float dir = PlayerStateList.IsLookingRight ? -1f : 1f; // knock opposite of facing
+        m_rigidbody2D.linearVelocity = new Vector2(dir * m_recoilXSpeed, 0);
+    }
+
+    private void ApplyVerticalRecoil()
+    {
+        if (m_yAxisInput < 0)
+        {
+            m_rigidbody2D.gravityScale = 0;
+            m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_recoilYSpeed);
+        }
+        else
+        {
+            m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, -m_recoilYSpeed);
+        }
+        m_airJumpCounter = 0;
     }
 
     private void StopRecoilX()
@@ -457,24 +515,27 @@ public class PlayerController : MonoBehaviour
     {
         PlayerStateList.IsInvincible = true;
 
-        GameObject bloodSpurt = Instantiate(m_bloodSpurtPrefab, transform.position, Quaternion.identity);
-        Destroy(bloodSpurt, 1.5f);
-
-        m_animator.SetTrigger("Hurt");
-
-        yield return new WaitForSeconds(1f); // Duration of invincibility
+        if (m_bloodSpurtPrefab != null)
+        {
+            GameObject bloodSpurt = Instantiate(m_bloodSpurtPrefab, transform.position, Quaternion.identity);
+            Destroy(bloodSpurt, 1.5f);
+        }
+        m_animator.SetTrigger(HurtHash);
+        yield return new WaitForSeconds(m_invincibilityDuration); // Duration of invincibility (serialized)
         PlayerStateList.IsInvincible = false;
     }
 
     public void HitStopTime(float _newTimeScale, int _restoreSpeed, float _delay)
     {
+        _newTimeScale = Mathf.Max(_newTimeScale, 0.01f);
+
         m_restoreTimeSpeed = _restoreSpeed;
         Time.timeScale = _newTimeScale;
 
         if (_delay > 0)
         {
-            StopCoroutine(ResetTimeScale(_delay));
-            StartCoroutine(ResetTimeScale(_delay));
+            if (m_timeScaleCoroutine != null) StopCoroutine(m_timeScaleCoroutine);
+            m_timeScaleCoroutine = StartCoroutine(ResetTimeScale(_delay));
         }
         else
         {
@@ -484,8 +545,8 @@ public class PlayerController : MonoBehaviour
 
     private IEnumerator ResetTimeScale(float _delay)
     {
+        yield return new WaitForSecondsRealtime(_delay);
         m_restoreTime = true;
-        yield return new WaitForSeconds(_delay);
     }
 
     private void RestoreTimeScale()
@@ -494,7 +555,7 @@ public class PlayerController : MonoBehaviour
         {
             if (Time.timeScale < 1f)
             {
-                Time.timeScale += m_restoreTimeSpeed * Time.deltaTime;
+                Time.timeScale += m_restoreTimeSpeed * Time.unscaledDeltaTime;
             }
             else
             {
@@ -513,14 +574,14 @@ public class PlayerController : MonoBehaviour
 
     private void Heal()
     {
-        if (Input.GetButton("Healing")
-                && Health < MaxHealth
-                && Mana > 0
-                && !PlayerStateList.IsJumping
-                && !PlayerStateList.IsDashing)
+        if (m_healHeld
+            && Health < MaxHealth
+                    && Mana > 0
+            && m_isGroundedCached
+                    && !PlayerStateList.IsDashing)
         {
             PlayerStateList.IsHealing = true;
-            m_animator.SetBool("isHealing", true);
+            m_animator.SetBool(IsHealingHash, true);
 
             m_healTimer += Time.deltaTime;
 
@@ -536,8 +597,89 @@ public class PlayerController : MonoBehaviour
         else
         {
             PlayerStateList.IsHealing = false;
-            m_animator.SetBool("isHealing", false);
+            m_animator.SetBool(IsHealingHash, false);
             m_healTimer = 0;
         }
+    }
+
+    private void CastSpell()
+    {
+        if (m_castPressed
+                && m_timeSinceCast >= m_timeBetweenCast
+                && Mana >= m_manaSpellCost)
+        {
+            PlayerStateList.IsCasting = true;
+            m_timeSinceCast = 0;
+            StartCoroutine(CastSpellCoroutine());
+        }
+        else
+        {
+            m_timeSinceCast += Time.deltaTime;
+        }
+
+        if (m_isGroundedCached)
+        {
+            m_downSpellFireball.SetActive(false); // Disable downspell if on the ground
+        }
+
+        if (m_downSpellFireball.activeInHierarchy)
+        {
+            m_rigidbody2D.linearVelocity += m_downSpellForce * Vector2.down;
+        }
+    }
+
+    private IEnumerator CastSpellCoroutine()
+    {
+        m_animator.SetBool(IsCastingHash, true);
+        yield return new WaitForSeconds(m_spellCastWindup);
+
+        // side cast
+        if (m_yAxisInput == 0 || (m_yAxisInput < 0 && m_isGroundedCached))
+        {
+            if (m_sideSpellFireball != null)
+            {
+                GameObject fireball = Instantiate(m_sideSpellFireball, m_sideAttackPoint.position, Quaternion.identity);
+
+                // flip fireball
+                if (PlayerStateList.IsLookingRight)
+                {
+                    fireball.transform.eulerAngles = Vector3.zero;
+                }
+                else
+                {
+                    fireball.transform.eulerAngles = new Vector2(fireball.transform.eulerAngles.x, 180f);
+                }
+            }
+
+            PlayerStateList.IsRecoilingX = true;
+        }
+        // up cast
+        else if (m_yAxisInput > 0)
+        {
+            if (m_upSpellExplosion != null) Instantiate(m_upSpellExplosion, transform);
+            m_rigidbody2D.linearVelocity = Vector2.zero;
+        }
+        // down cast
+        else if (m_yAxisInput < 0 && !m_isGroundedCached)
+        {
+            if (m_downSpellFireball != null) m_downSpellFireball.SetActive(true);
+        }
+
+        Mana -= m_manaSpellCost;
+        yield return new WaitForSeconds(m_spellCastRecovery);
+        m_animator.SetBool(IsCastingHash, false);
+        PlayerStateList.IsCasting = false;
+    }
+
+    private void OnTriggerEnter2D(Collider2D _other)
+    {
+        if (!PlayerStateList.IsCasting) return;
+        EnemyController enemyController = _other.GetComponent<EnemyController>();
+        if (enemyController == null) return;
+        enemyController.EnemyHit(
+            m_spellDamage,
+            (_other.transform.position - transform.position).normalized,
+            -m_recoilYSpeed
+        );
     }
 }
