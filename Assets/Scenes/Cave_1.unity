@@ -129,7 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 20291709}
   - component: {fileID: 20291710}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Cave - Platforms_10
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -642,12 +642,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 177066084}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 1, w: 0}
+  m_LocalRotation: {x: -0, y: -0, z: 1, w: 0}
   m_LocalPosition: {x: 7.3, y: 64.5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1582638545}
+  m_Father: {fileID: 2016639290}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 180}
 --- !u!212 &177066086
 SpriteRenderer:
@@ -690,9 +690,9 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 535254321
-  m_SortingLayer: 3
-  m_SortingOrder: 2
+  m_SortingLayerID: 1334779913
+  m_SortingLayer: 1
+  m_SortingOrder: 1
   m_Sprite: {fileID: -1051272002, guid: 2d4d99739e40d7141a2ce933c1a12568, type: 3}
   m_Color: {r: 0.1882353, g: 0.13333334, b: 0.13333334, a: 1}
   m_FlipX: 0
@@ -5082,7 +5082,7 @@ GameObject:
   m_Component:
   - component: {fileID: 908353361}
   - component: {fileID: 908353362}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Cave - Platforms_8
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9356,11 +9356,9 @@ Transform:
   - {fileID: 295647821}
   - {fileID: 648079471}
   - {fileID: 1880808902}
-  - {fileID: 177066085}
   - {fileID: 1339767864}
   - {fileID: 1872179072}
   - {fileID: 1369794834}
-  - {fileID: 1831147215}
   - {fileID: 1970971353}
   - {fileID: 2114457755}
   m_Father: {fileID: 1345526068}
@@ -10879,11 +10877,11 @@ Transform:
   m_GameObject: {fileID: 1831147214}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: 1, w: 0}
-  m_LocalPosition: {x: -11.6, y: 67.1, z: 0}
+  m_LocalPosition: {x: -11.6, y: 63.4, z: 0}
   m_LocalScale: {x: 0.62, y: 0.62, z: 0.62}
   m_ConstrainProportionsScale: 1
   m_Children: []
-  m_Father: {fileID: 1582638545}
+  m_Father: {fileID: 2016639290}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 180}
 --- !u!212 &1831147216
 SpriteRenderer:
@@ -10926,9 +10924,9 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 535254321
-  m_SortingLayer: 3
-  m_SortingOrder: 2
+  m_SortingLayerID: 1334779913
+  m_SortingLayer: 1
+  m_SortingOrder: 1
   m_Sprite: {fileID: 699516535, guid: 2d4d99739e40d7141a2ce933c1a12568, type: 3}
   m_Color: {r: 0.1882353, g: 0.13333334, b: 0.13333334, a: 1}
   m_FlipX: 0
@@ -12545,6 +12543,8 @@ Transform:
   - {fileID: 1394118071}
   - {fileID: 372590586}
   - {fileID: 2092039790}
+  - {fileID: 177066085}
+  - {fileID: 1831147215}
   m_Father: {fileID: 1359858848}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2022352902
