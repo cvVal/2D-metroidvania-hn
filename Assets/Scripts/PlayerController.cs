@@ -2,6 +2,10 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
+[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Animator))]
+[RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(PlayerStateList))]
 public class PlayerController : MonoBehaviour
 {
     public static PlayerController Instance { get; private set; }
@@ -33,12 +37,19 @@ public class PlayerController : MonoBehaviour
 
     [Header("Player Movement Settings")]
     [SerializeField][Min(0f)] private float m_walkSpeed = 5f;
+    [SerializeField][Min(0f)] private float m_maxFallSpeed = 20f; // Terminal velocity to prevent falling too fast
+    [SerializeField][Min(0f)] private float m_fallMultiplier = 2.5f; // Makes falling feel snappier
+    [SerializeField][Min(0f)] private float m_lowJumpMultiplier = 2f; // Better jump control when releasing jump early
+    [SerializeField][Min(0f)] private float m_smoothingFactor = 5f; // How smoothly to apply velocity changes near ground
     [Space(5f)]
 
     // ========================================================== //
 
     [Header("Jump Settings")]
     [SerializeField][Min(0f)] private float m_jumpForce = 45f; // Force applied when jumping (higher = higher jumps)
+    [SerializeField][Range(0f, 1f)] private float m_airControl = 0.8f; // How much control player has in air (1 = full control, 0 = no control)
+    [SerializeField][Range(0f, 1f)] private float m_jumpApexGravity = 0.5f; // Gravity multiplier at jump peak (lower = more floaty)
+    [SerializeField][Min(0f)] private float m_jumpApexThreshold = 5f; // Velocity threshold for apex gravity (when Y velocity is below this value)
 
     // Jump Buffer: Allows player to press jump slightly before landing and still jump
     private float m_jumpBufferCounter = 0; // Current buffer timer countdown
@@ -72,6 +83,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float m_groundCheckX = 0.5f;
     [SerializeField] private float m_groundCheckY = 0.2f;
     [SerializeField] private LayerMask m_groundLayer;
+    [SerializeField][Min(0f)] private float m_groundCheckBuffer = 0.1f; // Extra distance to check for ground before hitting
     [Space(5f)]
 
     // ========================================================== //
@@ -199,6 +211,9 @@ public class PlayerController : MonoBehaviour
             Instance = this;
         }
 
+        m_rigidbody2D = GetComponent<Rigidbody2D>();
+        m_animator = GetComponent<Animator>();
+        m_spriteRenderer = GetComponent<SpriteRenderer>();
         PlayerStateList = GetComponent<PlayerStateList>();
         DontDestroyOnLoad(gameObject);
     }
@@ -212,11 +227,10 @@ public class PlayerController : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        m_rigidbody2D = GetComponent<Rigidbody2D>();
-        m_animator = GetComponent<Animator>();
+        m_rigidbody2D.interpolation = RigidbodyInterpolation2D.Interpolate;
+        
         m_gravity = m_rigidbody2D.gravityScale;
         Health = MaxHealth;
-        m_spriteRenderer = GetComponent<SpriteRenderer>();
         Mana = m_mana;
         m_manaStorage.fillAmount = Mana;
         
@@ -263,6 +277,7 @@ public class PlayerController : MonoBehaviour
         // Apply all physics operations in FixedUpdate
         ApplyMovement();
         ApplyJump();
+        UpdateFallingPhysics();
         ApplyDownSpellForce();
         Recoil();
     }
@@ -306,7 +321,21 @@ public class PlayerController : MonoBehaviour
     {
         if (PlayerStateList.IsHealing) return;
 
-        m_rigidbody2D.linearVelocity = new Vector2(m_moveInputBuffered * m_walkSpeed, m_rigidbody2D.linearVelocity.y);
+        float targetHorizontalSpeed = m_moveInputBuffered * m_walkSpeed;
+        
+        if (m_isGroundedCached)
+        {
+            // On ground: full control
+            m_rigidbody2D.linearVelocity = new Vector2(targetHorizontalSpeed, m_rigidbody2D.linearVelocity.y);
+        }
+        else
+        {
+            // In air: reduced control for better momentum preservation
+            float currentHorizontalSpeed = m_rigidbody2D.linearVelocity.x;
+            float newHorizontalSpeed = Mathf.Lerp(currentHorizontalSpeed, targetHorizontalSpeed, m_airControl);
+            m_rigidbody2D.linearVelocity = new Vector2(newHorizontalSpeed, m_rigidbody2D.linearVelocity.y);
+        }
+        
         m_animator.SetBool(IsWalkingHash, m_rigidbody2D.linearVelocity.x != 0 && m_isGroundedCached);
     }
 
@@ -326,7 +355,9 @@ public class PlayerController : MonoBehaviour
             // Ground jump (including coyote time)
             if (m_jumpBufferCounter > 0 && m_coyoteTimeCounter > 0 && !PlayerStateList.IsJumping)
             {
-                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
+                // Preserve horizontal momentum from walking
+                float horizontalMomentum = m_moveInputBuffered * m_walkSpeed;
+                m_rigidbody2D.linearVelocity = new Vector2(horizontalMomentum, m_jumpForce);
                 PlayerStateList.IsJumping = true;
                 m_coyoteTimeCounter = 0; // Clear coyote time after jump
             }
@@ -334,7 +365,14 @@ public class PlayerController : MonoBehaviour
             else if (!m_isGroundedCached && m_airJumpCounter < m_maxAirJumps)
             {
                 m_airJumpCounter++;
-                m_rigidbody2D.linearVelocity = new Vector2(m_rigidbody2D.linearVelocity.x, m_jumpForce);
+                // For air jumps, preserve current horizontal velocity unless player is inputting direction
+                float horizontalVelocity = m_rigidbody2D.linearVelocity.x;
+                if (Mathf.Abs(m_moveInputBuffered) > 0.1f)
+                {
+                    // Player is actively moving, blend with current momentum
+                    horizontalVelocity = Mathf.Lerp(horizontalVelocity, m_moveInputBuffered * m_walkSpeed, 0.5f);
+                }
+                m_rigidbody2D.linearVelocity = new Vector2(horizontalVelocity, m_jumpForce);
                 PlayerStateList.IsJumping = true; // Ensure we're in jumping state
             }
             
@@ -343,6 +381,45 @@ public class PlayerController : MonoBehaviour
         }
 
         m_animator.SetBool(IsJumpingHash, !m_isGroundedCached);
+    }
+
+    private void UpdateFallingPhysics()
+    {
+        Vector2 currentVelocity = m_rigidbody2D.linearVelocity;
+        
+        // Reduce gravity near the peak of the jump
+        if (!m_isGroundedCached && Mathf.Abs(currentVelocity.y) < m_jumpApexThreshold && currentVelocity.y > -1f)
+        {
+            // At the apex of the jump - apply reduced gravity for floaty feel
+            m_rigidbody2D.linearVelocity += Vector2.up * Physics2D.gravity.y * (m_jumpApexGravity - 1) * Time.fixedDeltaTime;
+        }
+        else if (currentVelocity.y < 0)
+        {
+            // Check if we're about to hit ground and reduce speed if so
+            if (IsAboutToHitGround() && currentVelocity.y < -m_maxFallSpeed * 0.5f)
+            {
+                // Smoothly slow down when approaching ground to prevent pass-through
+                float targetSpeed = -m_maxFallSpeed * 0.5f;
+                float newYVelocity = Mathf.Lerp(currentVelocity.y, targetSpeed, Time.fixedDeltaTime * m_smoothingFactor);
+                m_rigidbody2D.linearVelocity = new Vector2(currentVelocity.x, newYVelocity);
+            }
+            else
+            {
+                // Falling - apply fall multiplier for snappier feel
+                m_rigidbody2D.linearVelocity += Vector2.up * Physics2D.gravity.y * (m_fallMultiplier - 1) * Time.fixedDeltaTime;
+            }
+        }
+        else if (currentVelocity.y > m_jumpApexThreshold && !m_jumpPressed)
+        {
+            // Rising fast but not holding jump - apply low jump multiplier for better control
+            m_rigidbody2D.linearVelocity += Vector2.up * Physics2D.gravity.y * (m_lowJumpMultiplier - 1) * Time.fixedDeltaTime;
+        }
+        
+        // Smoothly clamp falling speed to prevent passing through ground
+        if (m_rigidbody2D.linearVelocity.y < -m_maxFallSpeed)
+        {
+            m_rigidbody2D.linearVelocity = new Vector2(currentVelocity.x, -m_maxFallSpeed);
+        }
     }
 
     private void ApplyDownSpellForce()
@@ -362,6 +439,15 @@ public class PlayerController : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    private bool IsAboutToHitGround()
+    {
+        // Check if we're about to hit ground with some buffer distance
+        float checkDistance = m_groundCheckY + m_groundCheckBuffer;
+        return Physics2D.Raycast(m_groundCheck.position, Vector2.down, checkDistance, m_groundLayer)
+            || Physics2D.Raycast(m_groundCheck.position + new Vector3(m_groundCheckX, 0, 0), Vector2.down, checkDistance, m_groundLayer)
+            || Physics2D.Raycast(m_groundCheck.position + new Vector3(-m_groundCheckX, 0, 0), Vector2.down, checkDistance, m_groundLayer);
     }
 
     private void Flip()
